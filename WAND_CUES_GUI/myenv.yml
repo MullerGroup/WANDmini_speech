@@ -1,4 +1,0 @@
-name: my_env
-channels:
-  - defaults
-prefix: /opt/anaconda3/envs/my_env
