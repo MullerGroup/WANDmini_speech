@@ -1,0 +1,6 @@
+libusb1==3.1.0
+numpy==1.26.3
+PyQt5==5.15.10
+PyQt5_sip==12.13.0
+pyqtgraph==0.13.3
+scipy==1.12.0
