@@ -134,6 +134,8 @@ class processThread(QThread):
                 if self.samples % 60000 == 0:
                     self.numMins += 1
                     print('    Streaming for {} mins'.format(self.numMins))
+                elif self.samples % 30000 == 0:
+                    print('    Streaming for {} mins and 30 sec'.format(self.numMins))
             except Empty:
                 time.sleep(0.0001)
 

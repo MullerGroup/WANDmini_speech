@@ -11,6 +11,8 @@ import scipy.io as sio
 import datetime
 import os
 
+from teleprompter_gui import *
+
 # for writing stdout to text box
 class StdoutHandler(QObject):
     written = pyqtSignal(str)
@@ -93,6 +95,7 @@ class cp2130Thread(QThread):
 class processThread(QThread):
 
     plotDataReady = pyqtSignal(list)
+    updateTime = pyqtSignal()
 
     def __init__(self):
         QThread.__init__(self)
@@ -101,6 +104,7 @@ class processThread(QThread):
         self.start_time = 0
         self.end_time = 0
         self.runtime = 0
+        self.lastValidData = 0
 
     def __del__(self):
         self.wait()
@@ -128,15 +132,20 @@ class processThread(QThread):
                 if data[0]==0x00: # no CRC
                     self.values = [(data[2*(i+1) + 1] << 8 | data[2*(i+1)]) & 0xFFFF for i in range(0,67)]
                     plotData.append(self.values)
+                    self.lastValidData = self.values
                 else: # has CRC
                     self.crcSamples += 1
-                    plotData.append(self.values)
+                    #plotData.append(self.values)
+                    plotData.append(self.lastValidData)
                     self.values = [(data[2*(i+1) + 1] << 8 | data[2*(i+1)]) & 0xFFFF for i in range(0,67)]
                 self.saveData.append(self.values)
                 self.crcFlag.append(data[0])
                 if self.samples % 50 == 0:
                     self.plotDataReady.emit(plotData)
                     plotData = []
+                if self.samples % 1000 == 0:
+                    #emit signal to signify that a second's worth of data has been recorded
+                    self.updateTime.emit()
                 if self.samples % 60000 == 0:
                     self.numMins += 1
                     print('    Streaming for {} mins'.format(self.numMins))
@@ -144,8 +153,6 @@ class processThread(QThread):
                     print('    Streaming for {} mins and 30 sec'.format(self.numMins))
             except Empty:
                 time.sleep(0.0001)
-
-        
 
         if self.saveData:
             self.end_time = time.time()
@@ -222,8 +229,13 @@ class MainWindow(QMainWindow):
 
         # connect button in case connection was invalid at startup
         self.connectButton = QPushButton('Connect')
-        #self.connectButton.setCheckable(True)
         self.connectButton.clicked.connect(self.connect)
+
+        # teleprompter GUI
+        self.tpButton = QPushButton('Teleprompter')
+        self.tpButton.setCheckable(True)
+        self.tpButton.clicked.connect(self.startTP)
+        
 
         # save checkbox
         self.saveDataCheck = QCheckBox('Save stream to file')
@@ -247,7 +259,8 @@ class MainWindow(QMainWindow):
 
         self.layout.addWidget(self.connectButton,11,0,1,1)
         self.layout.addWidget(self.streamButton,11,1,1,1)
-        self.layout.addWidget(self.scrollStyle,11,2,1,2)
+        self.layout.addWidget(self.tpButton,11,2,1,1)
+        self.layout.addWidget(self.scrollStyle,11,3,1,1)
         self.layout.addWidget(self.saveDataCheck,11,4,1,1)
         
 
@@ -308,6 +321,19 @@ class MainWindow(QMainWindow):
                 self.cp2130Thread = cp2130Thread()
                 self.processThread = processThread()
                 self.processThread.plotDataReady.connect(self.plotDataReady)
+                
+                #setup thread for teleprompter
+                self.tpThread = tpThread()
+                self.tpThread.start_stop_signal.connect(self.stream)
+                self.processThread.updateTime.connect(self.tpThread.update_tp)
+
+                # should ideally be able to just update the teleprompter gui directly now
+                # ideally have controls to dictate the delay, cue time, and utterance file location
+                # also should have the ability to rename the save files with the utterance id
+                # stream/start/timing should hopefully be handled correctly
+                # currently doesn't do any error handling if you try to open the teleprompter before connecting stuff
+                # adding a debug mode might be cool... (with an emulator/fake timer)
+
                 self.start_flag = 1
                 print("Threads started and ready!") 
 
@@ -318,6 +344,10 @@ class MainWindow(QMainWindow):
         else:
             print("Already connected and ready!")      
 
+    def startTP(self):
+        self.tpThread.start()
+
+    @pyqtSlot()
     def stream(self):
         # starting and stopping stream with single button
         if self.streamButton.isChecked():
@@ -363,6 +393,8 @@ class MainWindow(QMainWindow):
         if self.wand_status == 1:
             self.processThread.quit()
             self.wand_status = 0
+        if self.tpButton.isChecked():
+            self.tpThread.quit()
 
 if __name__ == "__main__":
     # raw samples read from base station
@@ -415,8 +447,6 @@ if __name__ == "__main__":
 
     window.show()
 
-
-
     # start event loop
     ret = app.exec_()
 
@@ -424,5 +454,7 @@ if __name__ == "__main__":
     if window.start_flag == 1:
         window.cp2130Thread.quit()
         window.processThread.quit()
+        if window.tpButton.isChecked():
+            window.tpThread.quit()
     del window
     sys.exit(ret)
