@@ -157,7 +157,8 @@ class tpThread(QThread):
             else:
                 # All phrases have been displayed, possibly close the teleprompter
                 print("All phrases displayed.")
-                self.running_experiment = 0  # Reset to allow a new start
+                
+                self.running_experiment = 0  # Reset everything to allow a new start
                 self.counter = 0  
                 self.current_word = 0
 
