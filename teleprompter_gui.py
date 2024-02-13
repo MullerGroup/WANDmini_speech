@@ -40,7 +40,6 @@ class teleprompter(QWidget):
         # need to implement pause and reset functionality such that it works with the pyqt thread
 
         self.startStopButton = QPushButton('Start/Stop Experiment', self)
-        self.startStopButton.clicked.connect(self.start_stop_experiment)
         self.layout.addWidget(self.startStopButton)
 
         self.setLayout(self.layout)
@@ -59,6 +58,7 @@ class tpThread(QThread):
     start_stop_signal = pyqtSignal()
 
     def __init__(self):
+        QThread.__init__(self)
         self.counter = 0
         self.wait_period = 3 
         self.max_count = 2
@@ -81,8 +81,8 @@ class tpThread(QThread):
         self.words = self.extract_phrases()
 
         self.teleprompter = teleprompter()
-
-        self.teleprompter.start_stop_experiment_signal.connect(self.start_stop_experiment)
+        self.teleprompter.startStopButton.clicked.connect(self.start_stop_experiment)
+        #self.teleprompter.start_stop_experiment_signal.connect(self.start_stop_experiment)
 
         # connect signals
 

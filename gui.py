@@ -325,7 +325,7 @@ class MainWindow(QMainWindow):
                 #setup thread for teleprompter
                 self.tpButton.setCheckable(True)
                 self.tpThread = tpThread()
-                self.tpThread.start_stop_signal.connect(self.stream)
+                self.tpThread.start_stop_signal.connect(self.streamFromTP)
                 self.processThread.updateTime.connect(self.tpThread.update_tp)
 
                 # should ideally be able to just update the teleprompter gui directly now
@@ -349,6 +349,10 @@ class MainWindow(QMainWindow):
         self.tpThread.teleprompter.show()
         self.tpThread.start()
 
+    @pyqtSlot()
+    def streamFromTP(self):
+        self.streamButton.toggle()
+        self.stream()
 
     @pyqtSlot()
     def stream(self):
