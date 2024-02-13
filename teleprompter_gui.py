@@ -11,12 +11,7 @@ class teleprompter(QWidget):
 
     def __init__(self):
         super().__init__()
-
-        # eventually make utterances selectable
-
-        self.file_path = './utterances.txt'
-        self.words = self.extract_phrases(self.file_path)
-        self.current_index = 0 
+        
         self.initGUI()
 
 
@@ -28,13 +23,19 @@ class teleprompter(QWidget):
         self.setFixedWidth(500)  
         self.setFixedHeight(500)  
 
+        # teleprompter label setup
+
         font = QFont()
         font.setPointSize(25)  
 
-        self.label = QLabel(self.words[self.current_index], self)
+        self.label = QLabel("Waiting to start up...", self)
         self.label.setFont(font)  
         self.label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.label)
+
+        # teleprompter buttons setup
+
+        # need to implement pause and reset functionality such that it works with the pyqt thread
 
         self.startStopButton = QPushButton('Start', self)
         self.startStopButton.clicked.connect(self.startStopTimer)
@@ -47,27 +48,9 @@ class teleprompter(QWidget):
         self.setLayout(self.layout)
         self.setWindowTitle('Teleprompter')
 
-    def extract_phrases(self,textfile):
-        try:
-            with open(self.file_path, 'r') as file:
-                phrases = [line.strip() for line in file if line.strip()]
-            return phrases
-        except FileNotFoundError:
-            print(f"The file at {self.file_path} was not found.")
-            return []
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return []
-        
-    # need to implement pause and reset functionality 
-
-    def show_word(self):
-        """sets the label to the current word in word list"""
-        self.label.setText(self.words[self.current_index])
-    
-    def show_wait(self):
-        """hides text"""
-        self.label.setText("wait...")
+    def show_word(self, x):
+        """sets the label to the input, x, provided"""
+        self.label.setText(str(x))
 
 class tpThread(QThread):
 
@@ -84,10 +67,26 @@ class tpThread(QThread):
 
         self.running = 0
         #make window
-        
+
+        # eventually make utterances selectable
+        self.file_path = './utterances.txt'
+        self.words = self.extract_phrases()
+
         self.teleprompter = teleprompter()
 
         # connect signals
+
+    def extract_phrases(self):
+        try:
+            with open(self.file_path, 'r') as file:
+                phrases = [line.strip() for line in file if line.strip()]
+            return phrases
+        except FileNotFoundError:
+            print(f"The file at {self.file_path} was not found.")
+            return []
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return []
 
     def stream(self):
         self.start_stop_signal.emit()
@@ -125,19 +124,18 @@ class tpThread(QThread):
         elif self.running_experiment == 1:
 
             if self.counter == self.max_count: # checks if it has waited for max_count seconds (1 iteration completed)
-                self.teleprompter.show_wait() 
                 self.iterations -= 1 # the word has been displayed once
-                self.wait_period = 3
+                self.wait_period = 3 # make it wait
                 self.counter = 0
             else:
                 if self.wait_period != 0: # still need to wait before displaying the next word
-                    self.teleprompter.show_wait()
+                    self.teleprompter.show_word(self.wait_period)
                     self.wait_period -= 1
                 
                 # if done waiting, display the next word or terminate
                 else: 
                     if self.iterations == 0: # if phrase has been displayed x times, the data has been collected for that particular phrase
-                        # stop streaming wandmini data
+                        "add a line to stop streaming wandmini data"
                         self.running_experiment = 2
                     else:
                         phrase_to_display = self.words[self.current_word]
@@ -146,23 +144,22 @@ class tpThread(QThread):
     
         # if self.running_experiment == 2
         else:
-            if self.current_word < len(self.teleprompter.words):
+            if self.current_word < len(self.words):
                 # Reset for a new cycle after waiting
                 self.current_word += 1 # Move to the next phrase
                 time.sleep(1)  # Wait for 1 sec before starting a new cycle
                 reset()
             else:
-                # All phrases have been displayed, possibly close the teleprompter
+                # All phrases have been displayed
                 print("All phrases displayed.")
-                reset()
+                self.teleprompter.show_word("Done")
 
 
     def reset(self):
         self.running_experiment = 0  # Reset everything to allow a new start
         self.counter = 0  
         self.wait_period = 3
-        self.update_tp() # not sure if this line will cause an error
-
+        self.update_tp() # not sure if this line is necessary
     
     def run(self):
         self.teleprompter.show()
