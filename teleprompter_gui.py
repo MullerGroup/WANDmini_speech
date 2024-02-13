@@ -37,13 +37,9 @@ class teleprompter(QWidget):
 
         # need to implement pause and reset functionality such that it works with the pyqt thread
 
-        self.startStopButton = QPushButton('Start', self)
-        self.startStopButton.clicked.connect(self.startStopTimer)
+        self.startStopButton = QPushButton('Start/Stop Experiment', self)
+        self.startStopButton.clicked.connect(self.start_stop_experiment)
         self.layout.addWidget(self.startStopButton)
-
-        self.resetButton = QPushButton('Reset', self)
-        self.resetButton.clicked.connect(self.resetSequence)
-        self.layout.addWidget(self.resetButton)
 
         self.setLayout(self.layout)
         self.setWindowTitle('Teleprompter')
@@ -63,6 +59,11 @@ class tpThread(QThread):
         self.current_word = 0
         self.iterations = 1 # number of times we want to display each phrase - can make this selectable later
 
+        # state variable to keep track where we are:
+        # 0 = waiting/not running
+        # 1 = running/countdown
+        # 2 = running/show_word
+        # 3 = finish/back_to_start
         self.running_experiment = 0
 
         self.running = 0
@@ -91,6 +92,19 @@ class tpThread(QThread):
     def stream(self):
         self.start_stop_signal.emit()
 
+    def start_stop_experiment(self):
+        if (self.running_experiment == 0):
+            self.running_experiment = 1
+            self.update_graphic(self.wait_period)
+            self.stream()
+        elif self.running_experiment == 1:
+            self.running_experiment = 0
+            self.stream()
+    
+    def update_graphic(self,text):
+        self.teleprompter.show_word(text)
+
+
     @pyqtSlot()
     def update_tp(self):
         # will run once every second (according to the emit signal from the processThread)
@@ -116,20 +130,57 @@ class tpThread(QThread):
         # if experiment has not started, running_experiment = 0
         # if experiment is running, running_experiment = 1
         # if experiment has finished for this set of phrases, running_experiment = 2
-        
+
+
         if self.running_experiment == 0:
-            self.running_experiment = 1  
-            self.stream()
+            ## what do we do here?
+            print("state 0")
 
+            #action
+
+            #update state variable
         elif self.running_experiment == 1:
+            ## running/countdown
+            print("state 1")
+            self.counter = 0
 
+            #action
+            if self.counter == self.wait_period:
+                #update state variable
+                self.state = 2
+            else:
+                self.counter += 1
+
+        elif self.running_experiment == 2:
+            ##
+            print("state 2")
+            self.counter = 0
+
+            #action
+            
+            phrase = self.words[self.current_word]
+            self.update_graphic(phrase)
+
+            if self.counter == self.max_count:
+                self.running_experiment = 3
+
+            #update state variable
+        elif self.running_experiment == 3:
+            ##
+            print("state 3")
+
+            #action
+
+            #update state variable
+
+        if self.running_experiment == 1:
             if self.counter == self.max_count: # checks if it has waited for max_count seconds (1 iteration completed)
                 self.iterations -= 1 # the word has been displayed once
                 self.wait_period = 3 # make it wait
                 self.counter = 0
             else:
                 if self.wait_period != 0: # still need to wait before displaying the next word
-                    self.teleprompter.show_word(self.wait_period)
+                    self.update_graphic(self.wait_period)
                     self.wait_period -= 1
                 
                 # if done waiting, display the next word or terminate
@@ -139,11 +190,11 @@ class tpThread(QThread):
                         self.running_experiment = 2
                     else:
                         phrase_to_display = self.words[self.current_word]
-                        self.teleprompter.show_word(phrase_to_display)
+                        self.update_graphic(phrase_to_display)
                         self.counter += 1
     
         # if self.running_experiment == 2
-        else:
+        elif self.running_experiment == 2:
             if self.current_word < len(self.words):
                 # Reset for a new cycle after waiting
                 self.current_word += 1 # Move to the next phrase
@@ -161,9 +212,9 @@ class tpThread(QThread):
         self.wait_period = 3
         self.update_tp() # not sure if this line is necessary
     
-    def run(self):
-        self.teleprompter.show()
+    # def run(self):
+    #     self.teleprompter.show()
 
-        if not self.running:
-            self.running = True
-            print('Starting GUI')
+    #     if not self.running:
+    #         self.running = True
+    #         print('Starting GUI')

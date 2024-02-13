@@ -233,7 +233,7 @@ class MainWindow(QMainWindow):
 
         # teleprompter GUI
         self.tpButton = QPushButton('Teleprompter')
-        self.tpButton.setCheckable(True)
+        self.tpButton.setCheckable(False)
         self.tpButton.clicked.connect(self.startTP)
         
 
@@ -323,6 +323,7 @@ class MainWindow(QMainWindow):
                 self.processThread.plotDataReady.connect(self.plotDataReady)
                 
                 #setup thread for teleprompter
+                self.tpButton.setCheckable(True)
                 self.tpThread = tpThread()
                 self.tpThread.start_stop_signal.connect(self.stream)
                 self.processThread.updateTime.connect(self.tpThread.update_tp)
@@ -345,7 +346,9 @@ class MainWindow(QMainWindow):
             print("Already connected and ready!")      
 
     def startTP(self):
+        self.tpThread.teleprompter.show()
         self.tpThread.start()
+
 
     @pyqtSlot()
     def stream(self):
