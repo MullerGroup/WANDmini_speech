@@ -63,7 +63,8 @@ class tpThread(QThread):
         # 0 = waiting/not running
         # 1 = running/countdown
         # 2 = running/show_word
-        # 3 = finish/back_to_start
+        # 3 = running/countdown
+        # 4 = finish/back_to_start
         self.running_experiment = 0
 
         self.running = 0
@@ -140,19 +141,20 @@ class tpThread(QThread):
 
             #update state variable
         elif self.running_experiment == 1:
-            ## running/countdown
+            ## running/countdown_before
             print("state 1")
             self.counter = 0
 
             #action
             if self.counter == self.wait_period:
                 #update state variable
-                self.state = 2
+                self.running_experiment = 2
             else:
+                self.update_graphic(self.wait_period - self.counter)
                 self.counter += 1
 
         elif self.running_experiment == 2:
-            ##
+            ## running/show_word
             print("state 2")
             self.counter = 0
 
@@ -162,17 +164,44 @@ class tpThread(QThread):
             self.update_graphic(phrase)
 
             if self.counter == self.max_count:
+                #update state variable
                 self.running_experiment = 3
+            else:
+                self.counter += 1
 
-            #update state variable
         elif self.running_experiment == 3:
-            ##
+            ## running/countdown_after
             print("state 3")
 
+            ## action
+            self.counter = 0
+
             #action
+            if self.counter == self.wait_period:
+                ## update state variable
+                self.running_experiment = 4
 
-            #update state variable
+            else:
+                self.update_graphic(self.wait_period - self.counter)
+                self.counter += 1
 
+    
+        elif self.running_experiment == 4:
+            ## finish/back_to_start
+            print("state 4")
+
+            #action
+            if self.current_word < len(self.words):
+                self.stream() # stop streaming
+                time.sleep(1)  # Wait for 1 sec before starting a new cycle
+                self.current_word += 1 
+                reset()
+            else:
+                print("All phrases displayed.")
+                self.update_graphic("Done")
+                self.start_stop_experiment()
+
+        
         if self.running_experiment == 1:
             if self.counter == self.max_count: # checks if it has waited for max_count seconds (1 iteration completed)
                 self.iterations -= 1 # the word has been displayed once
@@ -196,21 +225,21 @@ class tpThread(QThread):
         # if self.running_experiment == 2
         elif self.running_experiment == 2:
             if self.current_word < len(self.words):
-                # Reset for a new cycle after waiting
-                self.current_word += 1 # Move to the next phrase
+                self.stream()
                 time.sleep(1)  # Wait for 1 sec before starting a new cycle
+                self.current_word += 1 # Move to the next phrase
                 reset()
             else:
                 # All phrases have been displayed
                 print("All phrases displayed.")
                 self.teleprompter.show_word("Done")
+                self.start_stop_experiment()
 
 
     def reset(self):
-        self.running_experiment = 0  # Reset everything to allow a new start
-        self.counter = 0  
-        self.wait_period = 3
-        self.update_tp() # not sure if this line is necessary
+        self.running_experiment = 0
+        self.counter = 0
+        self.start_stop_experiment()
     
     # def run(self):
     #     self.teleprompter.show()
