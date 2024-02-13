@@ -9,6 +9,8 @@ class teleprompter(QWidget):
     This "window" is a QWidget, it has no parent and will be a free floating seperate window!
     """
 
+    start_stop_experiment_signal = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         
@@ -48,6 +50,10 @@ class teleprompter(QWidget):
         """sets the label to the input, x, provided"""
         self.label.setText(str(x))
 
+    def start_stop_experiment(self):
+        self.start_stop_experiment_signal.emit()
+    
+
 class tpThread(QThread):
 
     start_stop_signal = pyqtSignal()
@@ -76,6 +82,8 @@ class tpThread(QThread):
 
         self.teleprompter = teleprompter()
 
+        self.teleprompter.start_stop_experiment_signal.connect(self.start_stop_experiment)
+
         # connect signals
 
     def extract_phrases(self):
@@ -90,9 +98,11 @@ class tpThread(QThread):
             print(f"An error occurred: {e}")
             return []
 
+    
     def stream(self):
         self.start_stop_signal.emit()
 
+    @pyqtSlot()
     def start_stop_experiment(self):
         if (self.running_experiment == 0):
             self.running_experiment = 1
@@ -201,8 +211,7 @@ class tpThread(QThread):
                 self.update_graphic("Done")
                 self.start_stop_experiment()
 
-        
-        if self.running_experiment == 1:
+        """if self.running_experiment == 1:
             if self.counter == self.max_count: # checks if it has waited for max_count seconds (1 iteration completed)
                 self.iterations -= 1 # the word has been displayed once
                 self.wait_period = 3 # make it wait
@@ -233,7 +242,7 @@ class tpThread(QThread):
                 # All phrases have been displayed
                 print("All phrases displayed.")
                 self.teleprompter.show_word("Done")
-                self.start_stop_experiment()
+                self.start_stop_experiment()"""
 
 
     def reset(self):
