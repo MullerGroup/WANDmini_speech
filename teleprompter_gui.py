@@ -154,13 +154,13 @@ class tpThread(QThread):
             print("state 1")
 
             #action
+            self.update_graphic(self.wait_period - self.counter)
+            self.counter += 1
+
             if self.counter == self.wait_period:
                 #update state variable
                 self.running_experiment = 2
                 self.counter = 0
-            else:
-                self.update_graphic(self.wait_period - self.counter)
-                self.counter += 1
                 
         elif self.running_experiment == 2:
             ## running/show_word
@@ -171,36 +171,30 @@ class tpThread(QThread):
             
             phrase = self.words[self.current_word]
             self.update_graphic(phrase)
+            self.counter += 1
 
             if self.counter == self.max_count:
                 #update state variable
                 self.counter = 0
                 self.running_experiment = 3
-            else:
-                self.counter += 1
+
 
         elif self.running_experiment == 3:
             ## running/countdown_after
             print("state 3")
-            
+        
+            self.update_graphic(self.wait_period - self.counter)
+            self.counter += 1
 
             #action
             if self.counter == self.wait_period:
                 ## update state variable
-                self.update_graphic("Wait...")
                 self.counter = 0
                 self.running_experiment = 4
-
-            else:
-                self.update_graphic(self.wait_period - self.counter)
-                self.counter += 1
-
     
         elif self.running_experiment == 4:
             ## finish/back_to_start
             print("state 4")
-
-            print(self.current_word, len(self.words))
 
             #action
             if self.current_word < len(self.words) - 1:
@@ -213,40 +207,6 @@ class tpThread(QThread):
                 print("All phrases displayed.")
                 self.update_graphic("Done")
                 self.start_stop_experiment()
-
-        """if self.running_experiment == 1:
-            if self.counter == self.max_count: # checks if it has waited for max_count seconds (1 iteration completed)
-                self.iterations -= 1 # the word has been displayed once
-                self.wait_period = 3 # make it wait
-                self.counter = 0
-            else:
-                if self.wait_period != 0: # still need to wait before displaying the next word
-                    self.update_graphic(self.wait_period)
-                    self.wait_period -= 1
-                
-                # if done waiting, display the next word or terminate
-                else: 
-                    if self.iterations == 0: # if phrase has been displayed x times, the data has been collected for that particular phrase
-                        "add a line to stop streaming wandmini data"
-                        self.running_experiment = 2
-                    else:
-                        phrase_to_display = self.words[self.current_word]
-                        self.update_graphic(phrase_to_display)
-                        self.counter += 1
-    
-        # if self.running_experiment == 2
-        elif self.running_experiment == 2:
-            if self.current_word < len(self.words):
-                self.stream()
-                time.sleep(1)  # Wait for 1 sec before starting a new cycle
-                self.current_word += 1 # Move to the next phrase
-                reset()
-            else:
-                # All phrases have been displayed
-                print("All phrases displayed.")
-                self.teleprompter.show_word("Done")
-                self.start_stop_experiment()"""
-
 
     def reset(self):
         self.running_experiment = 0
