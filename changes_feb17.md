@@ -1,8 +1,6 @@
 Fixed a bug in the start_stop_experiment() method -> made it start from the first word (all over again). Before this if you used to start the experiment after stopping, it would start it from whatever word you stopped at.
 
-Instead of calling the start_stop_experiment() method at state 4, the program now calls the next_word() method if there are more words left to display
-
-This method starts streaming and sends the state back to state 1
+Instead of calling the start_stop_experiment() method at state 4, the program now calls the next_word() method if there are more words left to display. This method starts streaming and sends the state back to state 1
 
 Removed debug statements describing current state
 
