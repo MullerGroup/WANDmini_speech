@@ -2,11 +2,12 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import pyqtgraph as pg
-import time 
+import time
+from rename_files import Rename
 
 class teleprompter(QWidget):
     """
-    This "window" is a QWidget, it has no parent and will be a free floating seperate window!
+    This "window" is a QWidget, it has no parent and will be a free floating separate window!
     """
 
     start_stop_experiment_signal = pyqtSignal()
@@ -16,34 +17,39 @@ class teleprompter(QWidget):
         
         self.initGUI()
 
-
     def initGUI(self):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.show_word)
 
         self.layout = QVBoxLayout()
-        self.setFixedWidth(500)  
-        self.setFixedHeight(500)  
+        self.resize(750, 750)
 
         # teleprompter label setup
 
-        font = QFont()
-        font.setPointSize(25)  
+        self.font = QFont()
+        self.font.setPointSize(150)  
 
         self.label = QLabel("Waiting to start up...", self)
-        self.label.setFont(font)  
+        self.label.setFont(self.font)  
         self.label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.label)
 
         # teleprompter buttons setup
-
-        # need to implement pause and reset functionality such that it works with the pyqt thread
 
         self.startStopButton = QPushButton('Start/Stop Experiment', self)
         self.layout.addWidget(self.startStopButton)
 
         self.setLayout(self.layout)
         self.setWindowTitle('Teleprompter')
+
+        # This line ensures the window can go full screen and back.
+        self.setWindowFlags(Qt.Window | Qt.WindowSystemMenuHint | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+
+    def toggleFullScreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
 
     def show_word(self, x):
         """sets the label to the input, x, provided"""
@@ -71,6 +77,9 @@ class tpThread(QThread):
         # 2 = running/show_word
         # 3 = running/countdown
         # 4 = finish/back_to_start
+            # if finished, calls the start_stop_experiment() method
+            # if back_to_start, calls the next_word() method
+        
         self.running_experiment = 0
 
         self.running = 0
@@ -110,6 +119,25 @@ class tpThread(QThread):
             self.stream()
         else:
             self.running_experiment = 0
+            self.current_word = 0
+            self.counter = 0
+            self.stream()
+
+            time.sleep(1)
+
+            # call the script to rename files
+            rename = Rename()
+            rename.rename_files()
+    
+    def update_graphic(self,text):
+        self.teleprompter.show_word(text)
+
+    def next_word(self):
+        if (self.running_experiment == 0):
+            self.running_experiment = 1
+            self.stream()
+        else:
+            self.running_experiment = 0
             self.stream()
     
     def update_graphic(self,text):
@@ -144,14 +172,16 @@ class tpThread(QThread):
 
         if self.running_experiment == 0:
             ## what do we do here?
-            print("state 0")
+            pass
 
             #action
 
             #update state variable
         elif self.running_experiment == 1:
             ## running/countdown_before
-            print("state 1")
+
+            # change background back to gray
+            self.teleprompter.setStyleSheet("")
 
             #action
             self.update_graphic(self.wait_period - self.counter)
@@ -164,11 +194,13 @@ class tpThread(QThread):
                 
         elif self.running_experiment == 2:
             ## running/show_word
-            print("state 2")
-            
 
             #action
-            
+
+            #change background to green
+
+            self.teleprompter.setStyleSheet("background-color: #4CAF50")
+
             phrase = self.words[self.current_word]
             self.update_graphic(phrase)
             self.counter += 1
@@ -181,9 +213,15 @@ class tpThread(QThread):
 
         elif self.running_experiment == 3:
             ## running/countdown_after
-            print("state 3")
-        
-            self.update_graphic(self.wait_period - self.counter)
+
+            # change background back to grey
+            self.teleprompter.setStyleSheet("")
+
+            if (self.wait_period - self.counter) == 1:
+                self.update_graphic("next word...")
+            else:
+                self.update_graphic(self.wait_period - self.counter)
+            
             self.counter += 1
 
             #action
@@ -194,28 +232,21 @@ class tpThread(QThread):
     
         elif self.running_experiment == 4:
             ## finish/back_to_start
-            print("state 4")
 
             #action
             if self.current_word < len(self.words) - 1:
                 self.stream() # stop streaming
-                self.update_graphic("Wait...")
                 time.sleep(1)  # Wait for 1 sec before starting a new cycle
                 self.current_word += 1 
                 self.reset()
             else:
-                print("All phrases displayed.")
+                self.teleprompter.setStyleSheet("background-color: #4CAF50")
                 self.update_graphic("Done")
+                print("All phrases displayed.")
                 self.start_stop_experiment()
+                
 
     def reset(self):
         self.running_experiment = 0
         self.counter = 0
-        self.start_stop_experiment()
-    
-    # def run(self):
-    #     self.teleprompter.show()
-
-    #     if not self.running:
-    #         self.running = True
-    #         print('Starting GUI')
+        self.next_word()
