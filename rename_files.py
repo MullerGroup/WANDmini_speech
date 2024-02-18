@@ -10,7 +10,7 @@ class Rename:
         self.count_utterances()
         self.data_path = "data"
 
-        # get the filenames that you want to rename - currently gets all the files in the /test directory
+        # get the filenames that you want to rename - currently gets all the files in the /data directory
         self.file_names = [f for f in sorted(listdir(self.data_path)) if isfile(join(self.data_path, f))]
 
         # removes the viz_data.m file -> that shouldn't be renamed
