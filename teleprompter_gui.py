@@ -93,8 +93,6 @@ class tpThread(QThread):
         self.teleprompter.startStopButton.clicked.connect(self.start_stop_experiment)
         #self.teleprompter.start_stop_experiment_signal.connect(self.start_stop_experiment)
 
-        # connect signals
-
     def extract_phrases(self):
         try:
             with open(self.file_path, 'r') as file:
@@ -116,18 +114,20 @@ class tpThread(QThread):
         if (self.running_experiment == 0):
             self.running_experiment = 1
             self.update_graphic("starting up...")
-            self.stream()
+            self.stream() # start streaming
         else:
             self.running_experiment = 0
             self.current_word = 0
             self.counter = 0
-            self.stream()
+            self.stream() # stop streaming
 
             time.sleep(1)
 
             # call the script to rename files
-            rename = Rename()
-            rename.rename_files()
+            rename_emg_data = Rename()
+            rename_emg_data.rename_files("data", "mat")
+            rename_audio = Rename()
+            rename_audio.rename_files("audio", "wav")
     
     def update_graphic(self,text):
         self.teleprompter.show_word(text)
@@ -135,10 +135,10 @@ class tpThread(QThread):
     def next_word(self):
         if (self.running_experiment == 0):
             self.running_experiment = 1
-            self.stream()
+            self.stream() # stop streaming
         else:
             self.running_experiment = 0
-            self.stream()
+            self.stream() # stop streaming
     
     def update_graphic(self,text):
         self.teleprompter.show_word(text)

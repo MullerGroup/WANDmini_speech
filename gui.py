@@ -12,6 +12,7 @@ import datetime
 import os
 
 from teleprompter_gui import *
+from record_audio import *
 
 # for writing stdout to text box
 class StdoutHandler(QObject):
@@ -326,7 +327,9 @@ class MainWindow(QMainWindow):
                 #setup thread for teleprompter
                 self.tpButton.setEnabled(True)
                 self.tpThread = tpThread()
+                self.audioThread = AudioRecorder()
                 self.tpThread.start_stop_signal.connect(self.streamFromTP)
+                self.tpThread.start_stop_signal.connect(self.streamAudio)
                 self.processThread.updateTime.connect(self.tpThread.update_tp)
 
                 # should ideally be able to just update the teleprompter gui directly now
@@ -354,6 +357,14 @@ class MainWindow(QMainWindow):
     def streamFromTP(self):
         self.streamButton.toggle()
         self.stream()
+
+    @pyqtSlot()
+    def streamAudio(self):
+        # starting and stopping audio stream
+        if self.audioThread.isRunning():
+            self.audioThread.stop()
+        else:
+            self.audioThread.start()
 
     @pyqtSlot()
     def stream(self):
