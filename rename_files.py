@@ -30,12 +30,16 @@ class Rename:
 
     # rename each file based on the word and the occurences 
     def rename_files(self, data_path, extension):
-        # get the filenames that you want to rename - currently gets all the files in the specified directory
-        self.file_names = [f for f in sorted(listdir(data_path)) if isfile(join(data_path, f))]
 
-        # removes the viz_data.m file -> that shouldn't be renamed
+        # get the filenames that you want to rename - currently gets all the files in the specified directory
+        # it should now be ignoring all hidden files
+        self.file_names = [f for f in sorted(listdir(data_path)) if isfile(join(data_path, f)) and not f.startswith('.')]
+
+        # removes the viz_data.m and .DS_STORE file -> that shouldn't be renamed
         if "viz_data.m" in self.file_names:
             self.file_names.remove("viz_data.m")
+        if ".DS_STORE" in self.file_names:
+            self.file_names.remove(".DS_STORE")
 
         for i in range(len(self.file_names)):
             curr_word = self.word_list[i]

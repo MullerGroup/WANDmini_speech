@@ -4,6 +4,7 @@ from PyQt5.QtGui import *
 import pyqtgraph as pg
 import time
 from rename_files import Rename
+import json
 
 class teleprompter(QWidget):
     """
@@ -20,9 +21,11 @@ class teleprompter(QWidget):
     def initGUI(self):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.show_word)
+        self.config_file = "config.json"
 
         self.layout = QVBoxLayout()
-        self.resize(750, 750)
+        self.width, self.height = self.getConfig()
+        self.resize(self.width, self.height)
 
         # teleprompter label setup
 
@@ -32,7 +35,20 @@ class teleprompter(QWidget):
         self.label = QLabel("Waiting to start up...", self)
         self.label.setFont(self.font)  
         self.label.setAlignment(Qt.AlignCenter)
-        self.layout.addWidget(self.label)
+        self.layout.addWidget(self.label, 1)
+
+        # setting up the words left label
+
+        self.wordsLeftLayout = QHBoxLayout()
+        self.wordsLeftFont = QFont()
+        self.wordsLeftFont.setPointSize(20)  
+
+        self.wordsLeftLabel = QLabel("Words left: 0", self)
+        self.wordsLeftLabel.setFont(self.wordsLeftFont)
+        self.wordsLeftLabel.setAlignment(Qt.AlignRight | Qt.AlignBottom)
+        self.wordsLeftLayout.addStretch(1)
+        self.wordsLeftLayout.addWidget(self.wordsLeftLabel)
+        self.layout.addLayout(self.wordsLeftLayout)
 
         # teleprompter buttons setup
 
@@ -51,14 +67,34 @@ class teleprompter(QWidget):
         else:
             self.showFullScreen()
 
+    def getConfig(self):
+        # Try to read the saved dimensions from the config file
+        try:
+            with open(self.config_file, 'r') as file:
+                config = json.load(file)
+                return [config.get('width', 750), config.get('height', 750)]
+        except (FileNotFoundError, json.JSONDecodeError):
+            return [750, 750]  # Return default dimensions if there's an issue reading the file
+
+    def resizeEvent(self, event):
+        # Save the new dimensions to the config file whenever the window is resized
+        newSize = event.size()
+        config = {'width': newSize.width(), 'height': newSize.height()}
+        with open(self.config_file, 'w') as file:
+            json.dump(config, file)
+        super().resizeEvent(event)
+
     def show_word(self, x):
         """sets the label to the input, x, provided"""
         self.label.setText(str(x))
 
+    def change_words_left(self, x):
+        """changes the words left label"""
+        self.wordsLeftLabel.setText("Words Left: " + str(x))
+
     def start_stop_experiment(self):
         self.start_stop_experiment_signal.emit()
     
-
 class tpThread(QThread):
 
     start_stop_signal = pyqtSignal()
@@ -70,6 +106,7 @@ class tpThread(QThread):
         self.max_count = 2
         self.current_word = 0
         self.iterations = 1 # number of times we want to display each phrase - can make this selectable later
+        
 
         # state variable to keep track where we are:
         # 0 = waiting/not running
@@ -143,6 +180,9 @@ class tpThread(QThread):
     def update_graphic(self,text):
         self.teleprompter.show_word(text)
 
+    def update_words_left(self, text):
+        self.teleprompter.change_words_left(str(text))
+
 
     @pyqtSlot()
     def update_tp(self):
@@ -185,6 +225,7 @@ class tpThread(QThread):
 
             #action
             self.update_graphic(self.wait_period - self.counter)
+            self.update_words_left(len(self.words) - self.current_word)
             self.counter += 1
 
             if self.counter == self.wait_period:
@@ -241,6 +282,7 @@ class tpThread(QThread):
                 self.reset()
             else:
                 self.teleprompter.setStyleSheet("background-color: #4CAF50")
+                self.update_words_left(0)
                 self.update_graphic("Done")
                 print("All phrases displayed.")
                 self.start_stop_experiment()
