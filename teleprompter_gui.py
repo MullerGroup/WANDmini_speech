@@ -30,7 +30,7 @@ class teleprompter(QWidget):
         # teleprompter label setup
 
         self.font = QFont()
-        self.font.setPointSize(150)  
+        self.font.setPointSize(120)  
 
         self.label = QLabel("Waiting to start up...", self)
         self.label.setFont(self.font)  
@@ -43,7 +43,7 @@ class teleprompter(QWidget):
         self.wordsLeftFont = QFont()
         self.wordsLeftFont.setPointSize(20)  
 
-        self.wordsLeftLabel = QLabel("Words left: 0", self)
+        self.wordsLeftLabel = QLabel("Phrases left: 0", self)
         self.wordsLeftLabel.setFont(self.wordsLeftFont)
         self.wordsLeftLabel.setAlignment(Qt.AlignRight | Qt.AlignBottom)
         self.wordsLeftLayout.addStretch(1)
@@ -90,7 +90,7 @@ class teleprompter(QWidget):
 
     def change_words_left(self, x):
         """changes the words left label"""
-        self.wordsLeftLabel.setText("Words Left: " + str(x))
+        self.wordsLeftLabel.setText("Phrases Left: " + str(x))
 
     def start_stop_experiment(self):
         self.start_stop_experiment_signal.emit()
@@ -102,10 +102,14 @@ class tpThread(QThread):
     def __init__(self):
         QThread.__init__(self)
         self.counter = 0
-        self.wait_period = 3
-        self.max_count = 2
+        self.wait_period = 3 
+        self.record_period = 3
+        self.repeat_wait_period = 1
+        self.new_wait_period = 2
         self.current_word = 0
         self.iterations = 1 # number of times we want to display each phrase - can make this selectable later
+        self.seen_words = {} # dictionary to keep track of which words have already been displayed and when they were displayed
+        self.is_repeated = False
         
 
         # state variable to keep track where we are:
@@ -176,6 +180,17 @@ class tpThread(QThread):
         else:
             self.running_experiment = 0
             self.stream() # stop streaming
+
+    def is_word_repeated(self, word, timestamp, grace_period=2):
+        if word in self.seen_words:
+            if timestamp - self.seen_words[word] <= grace_period:
+                return False
+            else:
+                self.seen_words[word] = timestamp
+                return True
+        else:
+            self.seen_words[word] = timestamp
+            return False
     
     def update_graphic(self,text):
         self.teleprompter.show_word(text)
@@ -223,15 +238,29 @@ class tpThread(QThread):
             # change background back to gray
             self.teleprompter.setStyleSheet("")
 
-            #action
-            self.update_graphic(self.wait_period - self.counter)
-            self.update_words_left(len(self.words) - self.current_word)
-            self.counter += 1
+            # if it's a new word, then wait for 2 seconds
+            # if it's an old word then wait 1 second
 
-            if self.counter == self.wait_period:
-                #update state variable
-                self.running_experiment = 2
-                self.counter = 0
+            self.is_repeated = self.is_word_repeated(self.words[self.current_word], time.time())
+
+            if self.is_repeated == False:
+                #action
+                self.update_graphic(self.new_wait_period - self.counter)
+                self.update_words_left(len(self.words) - self.current_word)
+                self.counter += 1
+
+                if self.counter == self.new_wait_period:
+                    #update state variable
+                    self.running_experiment = 2
+                    self.counter = 0
+            else:
+                self.update_graphic(self.repeat_wait_period - self.counter)
+                self.update_words_left(len(self.words) - self.current_word)
+                self.counter += 1
+
+                if self.counter == self.repeat_wait_period:
+                    self.running_experiment = 2
+                    self.counter = 0
                 
         elif self.running_experiment == 2:
             ## running/show_word
@@ -246,7 +275,8 @@ class tpThread(QThread):
             self.update_graphic(phrase)
             self.counter += 1
 
-            if self.counter == self.max_count:
+            # will record for 3 seconds
+            if self.counter == self.record_period:
                 #update state variable
                 self.counter = 0
                 self.running_experiment = 3
@@ -258,18 +288,27 @@ class tpThread(QThread):
             # change background back to grey
             self.teleprompter.setStyleSheet("")
 
-            if (self.wait_period - self.counter) == 1:
-                self.update_graphic("next word...")
-            else:
-                self.update_graphic(self.wait_period - self.counter)
-            
-            self.counter += 1
+            if self.is_repeated == False:
+                self.update_graphic("next phrase...")
+                
+                self.counter += 1
 
-            #action
-            if self.counter == self.wait_period:
-                ## update state variable
-                self.counter = 0
-                self.running_experiment = 4
+                #action
+                if self.counter == self.new_wait_period:
+                    ## update state variable
+                    self.counter = 0
+                    self.running_experiment = 4
+            else:
+                self.update_graphic("next phrase...")
+                
+                self.counter += 1
+
+                #action
+                if self.counter == self.repeat_wait_period:
+                    ## update state variable
+                    self.counter = 0
+                    self.running_experiment = 4
+
     
         elif self.running_experiment == 4:
             ## finish/back_to_start
