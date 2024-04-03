@@ -3,7 +3,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import pyqtgraph as pg
 import time
-from rename_files import Rename
+from rename_files_simple import Rename
 import json
 
 class teleprompter(QWidget):
@@ -50,6 +50,34 @@ class teleprompter(QWidget):
         self.wordsLeftLayout.addWidget(self.wordsLeftLabel)
         self.layout.addLayout(self.wordsLeftLayout)
 
+        self.recordLength = 3 # will be changed based on the radio buttons the user clicks
+
+        # radio buttons setup
+
+        self.radio_button_layout = QHBoxLayout()
+
+        self.recLengthLabel = QLabel("Recording Length (Seconds):", self)
+        self.radio_button_layout.addWidget(self.recLengthLabel)
+
+        self.oneRadioButton = QRadioButton("1")
+        self.oneRadioButton.toggled.connect(lambda checked: self.set_recording_length(1) if checked else None)
+        self.radio_button_layout.addWidget(self.oneRadioButton)
+
+        self.twoRadioButton = QRadioButton("2")
+        self.twoRadioButton.toggled.connect(lambda checked: self.set_recording_length(2) if checked else None)
+        self.radio_button_layout.addWidget(self.twoRadioButton)
+
+        self.threeRadioButton = QRadioButton("3")
+        self.threeRadioButton.setChecked(True)
+        self.threeRadioButton.toggled.connect(lambda checked: self.set_recording_length(3) if checked else None)
+        self.radio_button_layout.addWidget(self.threeRadioButton)
+
+        self.fiveRadioButton = QRadioButton("5")
+        self.fiveRadioButton.toggled.connect(lambda checked: self.set_recording_length(5) if checked else None)
+        self.radio_button_layout.addWidget(self.fiveRadioButton)
+
+        self.layout.addLayout(self.radio_button_layout)
+
         # teleprompter buttons setup
 
         self.startStopButton = QPushButton('Start/Stop Experiment', self)
@@ -92,6 +120,19 @@ class teleprompter(QWidget):
         """changes the words left label"""
         self.wordsLeftLabel.setText("Phrases Left: " + str(x))
 
+    def set_recording_length(self, x):
+        self.recordLength = x
+
+    def toggle_radio_buttons(self):
+        state = not self.oneRadioButton.isEnabled()
+        self.oneRadioButton.setEnabled(state)
+        self.twoRadioButton.setEnabled(state)
+        self.threeRadioButton.setEnabled(state)
+        self.fiveRadioButton.setEnabled(state)
+    
+    def get_recording_length(self):
+        return self.recordLength
+
     def start_stop_experiment(self):
         self.start_stop_experiment_signal.emit()
     
@@ -102,15 +143,13 @@ class tpThread(QThread):
     def __init__(self):
         QThread.__init__(self)
         self.counter = 0
-        self.wait_period = 3 
-        self.record_period = 3
-        self.repeat_wait_period = 1
-        self.new_wait_period = 2
+        self.wait_period = 1
         self.current_word = 0
         self.iterations = 1 # number of times we want to display each phrase - can make this selectable later
         self.seen_words = {} # dictionary to keep track of which words have already been displayed and when they were displayed
         self.is_repeated = False
-        
+        self.rename_emg = Rename()
+        self.rename_audio = Rename()
 
         # state variable to keep track where we are:
         # 0 = waiting/not running
@@ -132,6 +171,7 @@ class tpThread(QThread):
 
         self.teleprompter = teleprompter()
         self.teleprompter.startStopButton.clicked.connect(self.start_stop_experiment)
+        self.record_period = self.teleprompter.get_recording_length() # selectable, 2s 3s, 5s
         #self.teleprompter.start_stop_experiment_signal.connect(self.start_stop_experiment)
 
     def extract_phrases(self):
@@ -153,22 +193,26 @@ class tpThread(QThread):
     @pyqtSlot()
     def start_stop_experiment(self):
         if (self.running_experiment == 0):
+
+            # set recording length using radio buttons and freeze radio buttons
+            self.record_period = self.teleprompter.get_recording_length()
+            self.teleprompter.toggle_radio_buttons()
+
             self.running_experiment = 1
             self.update_graphic("starting up...")
+
             self.stream() # start streaming
         else:
             self.running_experiment = 0
             self.current_word = 0
             self.counter = 0
+
             self.stream() # stop streaming
 
             time.sleep(1)
 
-            # call the script to rename files
-            rename_emg_data = Rename()
-            rename_emg_data.rename_files("data", "mat")
-            rename_audio = Rename()
-            rename_audio.rename_files("audio", "wav")
+            # open radio buttons back up
+            self.teleprompter.toggle_radio_buttons()
     
     def update_graphic(self,text):
         self.teleprompter.show_word(text)
@@ -238,29 +282,16 @@ class tpThread(QThread):
             # change background back to gray
             self.teleprompter.setStyleSheet("")
 
-            # if it's a new word, then wait for 2 seconds
-            # if it's an old word then wait 1 second
+            # wait one second regardless of whether it is an old or a new word
 
-            self.is_repeated = self.is_word_repeated(self.words[self.current_word], time.time())
+            self.update_graphic(self.wait_period - self.counter)
+            self.update_words_left(len(self.words) - self.current_word)
+            self.counter += 1
 
-            if self.is_repeated == False:
-                #action
-                self.update_graphic(self.new_wait_period - self.counter)
-                self.update_words_left(len(self.words) - self.current_word)
-                self.counter += 1
-
-                if self.counter == self.new_wait_period:
-                    #update state variable
-                    self.running_experiment = 2
-                    self.counter = 0
-            else:
-                self.update_graphic(self.repeat_wait_period - self.counter)
-                self.update_words_left(len(self.words) - self.current_word)
-                self.counter += 1
-
-                if self.counter == self.repeat_wait_period:
-                    self.running_experiment = 2
-                    self.counter = 0
+            if self.counter == self.wait_period:
+                #update state variable
+                self.running_experiment = 2
+                self.counter = 0
                 
         elif self.running_experiment == 2:
             ## running/show_word
@@ -287,36 +318,29 @@ class tpThread(QThread):
 
             # change background back to grey
             self.teleprompter.setStyleSheet("")
+            
+            # wait one second regardless of whether it is an old or a new word
 
-            if self.is_repeated == False:
-                self.update_graphic("next phrase...")
+            self.update_graphic("next phrase...")
                 
-                self.counter += 1
+            self.counter += 1
 
-                #action
-                if self.counter == self.new_wait_period:
-                    ## update state variable
-                    self.counter = 0
-                    self.running_experiment = 4
-            else:
-                self.update_graphic("next phrase...")
-                
-                self.counter += 1
+            #action
+            if self.counter == self.wait_period:
+                ## update state variable
+                self.counter = 0
+                self.running_experiment = 4
 
-                #action
-                if self.counter == self.repeat_wait_period:
-                    ## update state variable
-                    self.counter = 0
-                    self.running_experiment = 4
-
-    
         elif self.running_experiment == 4:
             ## finish/back_to_start
+
+            to_rename = self.words[self.current_word]
 
             #action
             if self.current_word < len(self.words) - 1:
                 self.stream() # stop streaming
                 time.sleep(1)  # Wait for 1 sec before starting a new cycle
+
                 self.current_word += 1 
                 self.reset()
             else:
@@ -325,6 +349,10 @@ class tpThread(QThread):
                 self.update_graphic("Done")
                 print("All phrases displayed.")
                 self.start_stop_experiment()
+
+            # renames the first audio and emg file that hasn't been renamed yet ie the file for this current phrase
+            self.rename_audio.rename_file(to_rename, "audio", "wav")
+            self.rename_emg.rename_file(to_rename, "data", "mat")
                 
 
     def reset(self):
