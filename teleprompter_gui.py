@@ -50,6 +50,19 @@ class teleprompter(QWidget):
         self.wordsLeftLayout.addWidget(self.wordsLeftLabel)
         self.layout.addLayout(self.wordsLeftLayout)
 
+        # setting up estimated time remaining label
+
+        self.timeLeftLayout = QHBoxLayout()
+        self.timeLeftFont = QFont()
+        self.timeLeftFont.setPointSize(20)  
+
+        self.timeLeftLabel = QLabel(f"Time Remaining: 0m 0s", self)
+        self.timeLeftLabel.setFont(self.wordsLeftFont)
+        self.timeLeftLabel.setAlignment(Qt.AlignRight | Qt.AlignBottom)
+        self.timeLeftLayout.addStretch(1)
+        self.timeLeftLayout.addWidget(self.timeLeftLabel)
+        self.layout.addLayout(self.timeLeftLayout)
+
         self.recordLength = 3 # will be changed based on the radio buttons the user clicks
 
         # radio buttons setup
@@ -135,6 +148,10 @@ class teleprompter(QWidget):
 
     def start_stop_experiment(self):
         self.start_stop_experiment_signal.emit()
+
+    def change_time_remaining(self, x):
+        """changes the time remaining label"""
+        self.timeLeftLabel.setText("Time Remaining: " + str(x))
     
 class tpThread(QThread):
 
@@ -143,7 +160,8 @@ class tpThread(QThread):
     def __init__(self):
         QThread.__init__(self)
         self.counter = 0
-        self.wait_period = 1
+        self.wait_period_after = 0
+        self.wait_period_before = 1
         self.current_word = 0
         self.iterations = 1 # number of times we want to display each phrase - can make this selectable later
         self.seen_words = {} # dictionary to keep track of which words have already been displayed and when they were displayed
@@ -172,6 +190,7 @@ class tpThread(QThread):
         self.teleprompter = teleprompter()
         self.teleprompter.startStopButton.clicked.connect(self.start_stop_experiment)
         self.record_period = self.teleprompter.get_recording_length() # selectable, 2s 3s, 5s
+        
         #self.teleprompter.start_stop_experiment_signal.connect(self.start_stop_experiment)
 
     def extract_phrases(self):
@@ -198,6 +217,10 @@ class tpThread(QThread):
             self.record_period = self.teleprompter.get_recording_length()
             self.teleprompter.toggle_radio_buttons()
 
+            # each word has a wait before, recording time, and a wait after
+            self.total_recording_length = self.record_period + self.wait_period_after + self.wait_period_before
+            self.time_remaining = self.total_recording_length * len(self.words)
+
             self.running_experiment = 1
             self.update_graphic("starting up...")
 
@@ -210,7 +233,7 @@ class tpThread(QThread):
             self.stream() # stop streaming
 
             time.sleep(1)
-
+        
             # open radio buttons back up
             self.teleprompter.toggle_radio_buttons()
     
@@ -241,6 +264,15 @@ class tpThread(QThread):
 
     def update_words_left(self, text):
         self.teleprompter.change_words_left(str(text))
+
+    def display_time_remaining(self, seconds):
+        minutes = seconds // 60
+        remaining_seconds = seconds % 60
+
+        return f"{minutes}m {remaining_seconds}s"
+
+    def update_time_remaining(self, text):
+        self.teleprompter.change_time_remaining(str(text))
 
 
     @pyqtSlot()
@@ -276,22 +308,29 @@ class tpThread(QThread):
             #action
 
             #update state variable
+            
+
         elif self.running_experiment == 1:
             ## running/countdown_before
 
-            # change background back to gray
-            self.teleprompter.setStyleSheet("")
-
-            # wait one second regardless of whether it is an old or a new word
-
-            self.update_graphic(self.wait_period - self.counter)
-            self.update_words_left(len(self.words) - self.current_word)
-            self.counter += 1
-
-            if self.counter == self.wait_period:
-                #update state variable
+            if self.wait_period_before == 0: 
                 self.running_experiment = 2
                 self.counter = 0
+            else:
+                # change background back to gray
+                self.teleprompter.setStyleSheet("")
+
+                self.update_graphic("next phrase...")
+                self.update_words_left(len(self.words) - self.current_word)
+                self.counter += 1
+                self.time_remaining = self.time_remaining - 1
+                self.update_time_remaining(self.display_time_remaining(self.time_remaining))
+            
+
+                if self.counter == self.wait_period_before:
+                    #update state variable
+                    self.running_experiment = 2
+                    self.counter = 0
                 
         elif self.running_experiment == 2:
             ## running/show_word
@@ -305,7 +344,9 @@ class tpThread(QThread):
             phrase = self.words[self.current_word]
             self.update_graphic(phrase)
             self.counter += 1
-
+            self.time_remaining = self.time_remaining - 1
+            self.update_time_remaining(self.display_time_remaining(self.time_remaining))
+            
             # will record for 3 seconds
             if self.counter == self.record_period:
                 #update state variable
@@ -315,21 +356,25 @@ class tpThread(QThread):
 
         elif self.running_experiment == 3:
             ## running/countdown_after
-
-            # change background back to grey
-            self.teleprompter.setStyleSheet("")
             
-            # wait one second regardless of whether it is an old or a new word
+            # currently waiting 0 seconds - show no countdown after word
 
-            self.update_graphic("next phrase...")
-                
-            self.counter += 1
-
-            #action
-            if self.counter == self.wait_period:
-                ## update state variable
+            if self.wait_period_after == 0:
                 self.counter = 0
                 self.running_experiment = 4
+            else:
+                # change background back to grey
+                self.teleprompter.setStyleSheet("")
+                self.update_graphic("next phrase...")
+                self.counter += 1
+                self.time_remaining = self.time_remaining - 1
+                self.update_time_remaining(self.display_time_remaining(self.time_remaining))
+                
+                #action
+                if self.counter == self.wait_period_after:
+                    ## update state variable
+                    self.counter = 0
+                    self.running_experiment = 4
 
         elif self.running_experiment == 4:
             ## finish/back_to_start
