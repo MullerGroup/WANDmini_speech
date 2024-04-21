@@ -314,6 +314,7 @@ class tpThread(QThread):
             ## running/countdown_before
 
             if self.wait_period_before == 0: 
+                self.update_words_left(len(self.words) - self.current_word)
                 self.running_experiment = 2
                 self.counter = 0
             else:
