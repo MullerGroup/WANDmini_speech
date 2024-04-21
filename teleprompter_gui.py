@@ -160,8 +160,8 @@ class tpThread(QThread):
     def __init__(self):
         QThread.__init__(self)
         self.counter = 0
-        self.wait_period_after = 0
-        self.wait_period_before = 1
+        self.wait_period_after = 1
+        self.wait_period_before = 0
         self.current_word = 0
         self.iterations = 1 # number of times we want to display each phrase - can make this selectable later
         self.seen_words = {} # dictionary to keep track of which words have already been displayed and when they were displayed
