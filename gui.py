@@ -238,7 +238,6 @@ class MainWindow(QMainWindow):
         self.tpButton.setEnabled(False)
         self.tpButton.clicked.connect(self.startTP)
         
-
         # save checkbox
         self.saveDataCheck = QCheckBox('Save stream to file')
         self.saveDataCheck.setCheckable(True)
