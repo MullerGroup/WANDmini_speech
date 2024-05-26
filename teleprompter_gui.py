@@ -40,7 +40,7 @@ class teleprompter(QWidget):
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setWordWrap(True)
         self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.label.setMaximumWidth(500) # this can be tweaked
+        self.label.setMaximumWidth(1500) # this can be tweaked
         self.layout.addWidget(self.label, 1)
 
         # setting up the words left label
