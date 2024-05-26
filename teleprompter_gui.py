@@ -5,6 +5,7 @@ import pyqtgraph as pg
 import time
 from rename_files_simple import Rename
 import json
+from pyqt_responsive_label import ResponsiveLabel
 
 class teleprompter(QWidget):
     """
@@ -32,9 +33,14 @@ class teleprompter(QWidget):
         self.font = QFont()
         self.font.setPointSize(120)  
 
-        self.label = QLabel("Waiting to start up...", self)
+        self.label = ResponsiveLabel(self)
+        self.label.setText("Waiting to start up...")
+
         self.label.setFont(self.font)  
         self.label.setAlignment(Qt.AlignCenter)
+        self.label.setWordWrap(True)
+        self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.label.setMaximumWidth(500) # this can be tweaked
         self.layout.addWidget(self.label, 1)
 
         # setting up the words left label
@@ -397,8 +403,8 @@ class tpThread(QThread):
                 self.start_stop_experiment()
 
             # renames the first audio and emg file that hasn't been renamed yet ie the file for this current phrase
-            self.rename_audio.rename_file(to_rename, "audio", "wav")
-            self.rename_emg.rename_file(to_rename, "data", "mat")
+            self.rename_audio.rename_file(to_rename, "audio", "wav", self.current_word + 1)
+            self.rename_emg.rename_file(to_rename, "data", "mat", self.current_word + 1)
                 
 
     def reset(self):
