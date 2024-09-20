@@ -6,6 +6,8 @@ import time
 from rename_files_simple import Rename
 import json
 from pyqt_responsive_label import ResponsiveLabel
+import math 
+import re 
 
 class teleprompter(QWidget):
     """
@@ -39,8 +41,8 @@ class teleprompter(QWidget):
         self.label.setFont(self.font)  
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setWordWrap(True)
-        self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.label.setMaximumWidth(1500) # this can be tweaked
+        self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        #self.label.setMaximumWidth(1500) # this can be tweaked
         self.layout.addWidget(self.label, 1)
 
         # setting up the words left label
@@ -95,6 +97,10 @@ class teleprompter(QWidget):
         self.fiveRadioButton.toggled.connect(lambda checked: self.set_recording_length(5) if checked else None)
         self.radio_button_layout.addWidget(self.fiveRadioButton)
 
+        self.autoRadioButton = QRadioButton("Auto")
+        self.autoRadioButton.toggled.connect(lambda checked: self.set_recording_length_auto(99) if checked else None)
+        self.radio_button_layout.addWidget(self.autoRadioButton)
+
         self.layout.addLayout(self.radio_button_layout)
 
         # teleprompter buttons setup
@@ -142,6 +148,11 @@ class teleprompter(QWidget):
     def set_recording_length(self, x):
         self.recordLength = x
 
+    def set_recording_length_auto(self, x):
+        self.recordLength = x
+
+
+
     def toggle_radio_buttons(self):
         state = not self.oneRadioButton.isEnabled()
         self.oneRadioButton.setEnabled(state)
@@ -186,6 +197,8 @@ class tpThread(QThread):
         
         self.running_experiment = 0
 
+        self.time_remaining = 0
+
         self.running = 0
         #make window
 
@@ -215,6 +228,37 @@ class tpThread(QThread):
     def stream(self):
         self.start_stop_signal.emit()
 
+    def calculate_recording_duration(self, sentence, words_per_second=1):
+        """
+        Calculate recording duration based on the number of words.
+        
+        Args:
+            sentence (str): The sentence to be recorded.
+            words_per_second (float): Estimated speaking rate.
+        
+        Returns:
+            float: Duration in seconds.
+        """
+        word_count = len(sentence.split())
+        base_duration = round(word_count / words_per_second)
+        
+        # Define pause durations for punctuation
+        comma_pause = 0.5  # seconds per comma
+        period_pause = 1.0  # seconds per period, question mark, exclamation mark
+
+        # Count punctuation
+        comma_count = len(re.findall(r',', sentence))
+        period_count = len(re.findall(r'[.!?]', sentence))
+
+        # Calculate total pause duration
+        total_pause_duration = (comma_count * comma_pause) + (period_count * period_pause)
+
+        # Total duration
+        total_duration = round(base_duration + total_pause_duration)
+
+        # Set minimum and maximum duration limits
+        return max(1, min(total_duration, 60))  # For example, between 1 and 60 seconds
+
     @pyqtSlot()
     def start_stop_experiment(self):
         if (self.running_experiment == 0):
@@ -223,9 +267,18 @@ class tpThread(QThread):
             self.record_period = self.teleprompter.get_recording_length()
             self.teleprompter.toggle_radio_buttons()
 
-            # each word has a wait before, recording time, and a wait after
-            self.total_recording_length = self.record_period + self.wait_period_after + self.wait_period_before
-            self.time_remaining = self.total_recording_length * len(self.words)
+            if self.record_period == 99: # dynamic recording length
+                for phrase in self.words:
+                    duration = self.calculate_recording_duration(phrase)
+                    self.time_remaining += duration + self.wait_period_after + self.wait_period_before
+            else:
+                # each word has a wait before, recording time, and a wait after
+                self.total_recording_length = self.record_period + self.wait_period_after + self.wait_period_before
+
+                # we also add 3 seconds per word
+                wand_wait_time = 3 * self.total_recording_length
+
+                self.time_remaining = self.total_recording_length * len(self.words)
 
             self.running_experiment = 1
             self.update_graphic("starting up...")
@@ -350,12 +403,19 @@ class tpThread(QThread):
 
             phrase = self.words[self.current_word]
             self.update_graphic(phrase)
+            
+            # Calculate dynamic recording duration
+            if self.record_period == 99:
+                self.recording_time = self.calculate_recording_duration(phrase)
+                print(self.recording_time)
+            else:
+                self.recording_time = self.record_period
+
             self.counter += 1
             self.time_remaining = self.time_remaining - 1
             self.update_time_remaining(self.display_time_remaining(self.time_remaining))
             
-            # will record for 3 seconds
-            if self.counter == self.record_period:
+            if self.counter == self.recording_time:
                 #update state variable
                 self.counter = 0
                 self.running_experiment = 3
