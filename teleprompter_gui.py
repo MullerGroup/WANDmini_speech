@@ -120,6 +120,41 @@ class teleprompter(QWidget):
         else:
             self.showFullScreen()
 
+    def adjust_font_size(self, text, max_font_size=150, min_font_size=10):
+        """
+        Adjusts the font size of the label so that the text fits within the label's dimensions,
+        allowing for multiple lines.
+
+        Args:
+            text (str): The text to display.
+            max_font_size (int): The starting font size.
+            min_font_size (int): The minimum font size to allow.
+        """
+        label_width = self.label.width()
+        label_height = self.label.height()
+
+        font_size = max_font_size
+        font = QFont()
+        font.setPointSize(font_size)
+        self.label.setFont(font)
+
+        # Create a QFontMetrics object to measure text size
+        fm = QFontMetrics(font)
+
+        # Define the rectangle with label's width and a large height
+        rect = fm.boundingRect(0, 0, label_width, label_height, Qt.TextWordWrap, text)
+
+        # Reduce font size until text fits within the label's height
+        while (rect.height() > label_height) and (font_size > min_font_size):
+            font_size -= 1
+            font.setPointSize(font_size)
+            self.label.setFont(font)
+            fm = QFontMetrics(font)
+            rect = fm.boundingRect(0, 0, label_width, label_height, Qt.TextWordWrap, text)
+
+        # Optional: If text is still too large, you can handle it (e.g., truncate or add scrolling)
+
+
     def getConfig(self):
         # Try to read the saved dimensions from the config file
         try:
@@ -135,10 +170,16 @@ class teleprompter(QWidget):
         config = {'width': newSize.width(), 'height': newSize.height()}
         with open(self.config_file, 'w') as file:
             json.dump(config, file)
+
+        # Adjust font size for the current text
+        current_text = self.label.text()
+        self.adjust_font_size(current_text)
+
         super().resizeEvent(event)
 
     def show_word(self, x):
         """sets the label to the input, x, provided"""
+        self.adjust_font_size(x)
         self.label.setText(str(x))
 
     def change_words_left(self, x):
@@ -208,7 +249,7 @@ class tpThread(QThread):
 
         self.teleprompter = teleprompter()
         self.teleprompter.startStopButton.clicked.connect(self.start_stop_experiment)
-        self.record_period = self.teleprompter.get_recording_length() # selectable, 2s 3s, 5s
+        self.record_period = self.teleprompter.get_recording_length() # selectable, 1s, 2s 3s, 5s, Auto
         
         #self.teleprompter.start_stop_experiment_signal.connect(self.start_stop_experiment)
 
@@ -271,14 +312,21 @@ class tpThread(QThread):
                 for phrase in self.words:
                     duration = self.calculate_recording_duration(phrase)
                     self.time_remaining += duration + self.wait_period_after + self.wait_period_before
+                    # we also add 3 seconds per word
+                    wand_wait_time = 2 # static number we are adding to account for wait time between each phrase 
+                    
+                    self.time_remaining = self.time_remaining + wand_wait_time
+                    
             else:
                 # each word has a wait before, recording time, and a wait after
                 self.total_recording_length = self.record_period + self.wait_period_after + self.wait_period_before
 
                 # we also add 3 seconds per word
-                wand_wait_time = 3 * self.total_recording_length
+                wand_wait_time = 2 * len(self.words)
 
                 self.time_remaining = self.total_recording_length * len(self.words)
+
+                self.time_remaining = self.time_remaining + wand_wait_time
 
             self.running_experiment = 1
             self.update_graphic("starting up...")
@@ -370,6 +418,7 @@ class tpThread(QThread):
             
 
         elif self.running_experiment == 1:
+            self.update_time_remaining(self.display_time_remaining(self.time_remaining))
             ## running/countdown_before
 
             if self.wait_period_before == 0: 
@@ -393,6 +442,7 @@ class tpThread(QThread):
                     self.counter = 0
                 
         elif self.running_experiment == 2:
+            self.update_time_remaining(self.display_time_remaining(self.time_remaining))
             ## running/show_word
 
             #action
@@ -422,6 +472,7 @@ class tpThread(QThread):
 
 
         elif self.running_experiment == 3:
+            self.update_time_remaining(self.display_time_remaining(self.time_remaining))
             ## running/countdown_after
             
             # currently waiting 0 seconds - show no countdown after word
@@ -454,8 +505,16 @@ class tpThread(QThread):
                 time.sleep(1)  # Wait for 1 sec before starting a new cycle
 
                 self.current_word += 1 
+                
+                # Subtract the 2 seconds wait time when a new phrase is shown
+                self.time_remaining -= 2
+
                 self.reset()
             else:
+                # Subtract the 2 seconds wait time when a new phrase is shown
+                self.time_remaining -= 2
+                self.update_time_remaining(self.display_time_remaining(self.time_remaining))
+
                 self.teleprompter.setStyleSheet("background-color: #4CAF50")
                 self.update_words_left(0)
                 self.update_graphic("Done")
