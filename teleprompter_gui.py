@@ -302,7 +302,10 @@ class tpThread(QThread):
 
     @pyqtSlot()
     def start_stop_experiment(self):
-        if (self.running_experiment == 0):
+        if (self.running_experiment == 0): # start experiment
+            # Reset renaming state on experiment start
+            self.rename_audio.reset()
+            self.rename_emg.reset()
 
             # set recording length using radio buttons and freeze radio buttons
             self.record_period = self.teleprompter.get_recording_length()
@@ -332,15 +335,24 @@ class tpThread(QThread):
             self.update_graphic("starting up...")
 
             self.stream() # start streaming
-        else:
+        else: # stop experiment
+            self.stream() # stop streaming
+
+            time.sleep(1)
+
+            # Rename the last recorded audio and EMG file pair
+            
+            current_phrase = self.words[self.current_word]
+            print((current_phrase), self.current_word + 1)
+            self.rename_audio.rename_file(current_phrase, "audio", "wav", self.current_word + 1)
+            self.rename_emg.rename_file(current_phrase, "data", "mat", self.current_word + 1)
+
+            # after renaming is done, reset the experiment
+
             self.running_experiment = 0
             self.current_word = 0
             self.counter = 0
 
-            self.stream() # stop streaming
-
-            time.sleep(1)
-        
             # open radio buttons back up
             self.teleprompter.toggle_radio_buttons()
     
@@ -497,14 +509,20 @@ class tpThread(QThread):
         elif self.running_experiment == 4:
             ## finish/back_to_start
 
-            to_rename = self.words[self.current_word]
+            current_phrase = self.words[self.current_word]
 
             #action
             if self.current_word < len(self.words) - 1:
                 self.stream() # stop streaming
+
                 time.sleep(1)  # Wait for 1 sec before starting a new cycle
 
                 self.current_word += 1 
+
+                # renames the first audio and emg file that hasn't been renamed yet ie the file for this current phrase
+                print((current_phrase), self.current_word)
+                self.rename_audio.rename_file(current_phrase, "audio", "wav", self.current_word)
+                self.rename_emg.rename_file(current_phrase, "data", "mat", self.current_word)
                 
                 # Subtract the 2 seconds wait time when a new phrase is shown
                 self.time_remaining -= 2
@@ -519,12 +537,9 @@ class tpThread(QThread):
                 self.update_words_left(0)
                 self.update_graphic("Done")
                 print("All phrases displayed.")
+
                 self.start_stop_experiment()
 
-            # renames the first audio and emg file that hasn't been renamed yet ie the file for this current phrase
-            self.rename_audio.rename_file(to_rename, "audio", "wav", self.current_word + 1)
-            self.rename_emg.rename_file(to_rename, "data", "mat", self.current_word + 1)
-                
 
     def reset(self):
         self.running_experiment = 0

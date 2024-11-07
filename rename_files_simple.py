@@ -11,11 +11,32 @@ class Rename:
 
         # get the filenames that you want to rename - currently gets all the files in the specified directory
         # it should now be ignoring all hidden files
-        self.file_names = [f for f in sorted(listdir(folder)) if isfile(join(folder, f)) and not f.startswith('.') and f not in self.already_renamed]
+        # HAS FILE NAMES - NOT FILE PATHS
+        self.file_names = sorted(
+            [f for f in listdir(folder) if isfile(join(folder, f)) and not f.startswith('.') and f not in self.already_renamed],
+            key=lambda f: path.getmtime(join(folder, f))
+        )
 
-        first_word = phrase.split()[0]
-        time_stamp = datetime.now().strftime('%m%d%H%M%S') # month, day, hour, minute, second
-        old_filename = path.join(folder, self.file_names[0])
-        new_filename = path.join(folder, f"{line_num}_{first_word}_{time_stamp}.{extension}")
-        rename(old_filename, new_filename)
-        self.already_renamed.append(new_filename)
+        diphone = phrase.replace(" ", "")
+        time_format = '%m%d%H%M%S'
+        time_stamp = datetime.now().strftime(time_format) # month, day, hour, minute, second
+        old_file_path = path.join(folder, self.file_names[0])
+        new_file_name = f"{line_num}_{diphone}_{time_stamp}.{extension}"
+        new_file_path = path.join(folder, new_file_name)
+
+        rename(old_file_path, new_file_path)
+
+        print(old_file_path, " renamed to ", new_file_path)
+
+
+        # ADDING THE FILE NAME SO WE CAN COMPARE AND SEE IF IT'S ALREADY RENAMED
+        self.already_renamed.append(new_file_name)
+
+        # Update the list of files after renaming
+        self.file_names = sorted(
+            [f for f in listdir(folder) if isfile(join(folder, f)) and not f.startswith('.') and f not in self.already_renamed],
+            key=lambda f: path.getmtime(join(folder, f))
+        )
+
+    def reset(self):
+        self.already_renamed = []  
