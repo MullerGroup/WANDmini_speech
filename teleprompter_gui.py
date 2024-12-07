@@ -218,7 +218,7 @@ class tpThread(QThread):
     def __init__(self):
         QThread.__init__(self)
         self.counter = 0
-        self.wait_period_after = 1
+        self.wait_period_after = 0
         self.wait_period_before = 0
         self.current_word = 0
         self.iterations = 1 # number of times we want to display each phrase - can make this selectable later
@@ -316,6 +316,7 @@ class tpThread(QThread):
                     duration = self.calculate_recording_duration(phrase)
                     self.time_remaining += duration + self.wait_period_after + self.wait_period_before
                     # we also add 3 seconds per word
+                    # this doesn't affect the wait time recording length, just the total time display
                     wand_wait_time = 2 # static number we are adding to account for wait time between each phrase 
                     
                     self.time_remaining = self.time_remaining + wand_wait_time
